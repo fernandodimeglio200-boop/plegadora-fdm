@@ -64,3 +64,70 @@ ax.axis('off')
 st.pyplot(fig)
 
 st.table(secuencia)
+import streamlit as st
+import matplotlib.pyplot as plt
+import math
+
+st.set_page_config(page_title="FDM - Configurador Libre", layout="wide")
+st.title("🛠️ Simulador de Plegado Dinámico - FDM")
+
+# 1. Parámetros de Máquina
+CUELLO = 18.0
+RADIO_CUBO = 47.5
+
+with st.sidebar:
+    st.header("⚙️ Configuración")
+    esp = st.selectbox("Espesor (mm)", [0.5, 0.9, 1.25, 1.6, 2.0, 2.5, 3.18, 4.76, 6.35])
+    v_matriz = st.number_input("V de Matriz (mm)", value=float(esp * 8))
+    
+    st.divider()
+    st.subheader("📐 Medidas de la Pieza")
+    # Aquí es donde podés poner todos los pliegues que quieras separados por coma
+    input_alas = st.text_input("Ingresá las alas separadas por coma:", "20, 40, 60, 15, 30, 15")
+
+# 2. Procesamiento de datos
+lista_alas = [float(x.strip()) for x in input_alas.split(",") if x.strip()]
+num_pliegues = len(lista_alas) - 1
+
+# Cálculo de Desarrollo
+r_int = v_matriz / 6
+deduccion = (2 * (r_int + esp)) - ((math.pi/2) * (r_int + (esp*0.45)))
+desarrollo = sum(lista_alas) - (deduccion * num_pliegues)
+
+# 3. Resultados Principales
+st.metric("📏 LARGO TOTAL A CORTAR (Desarrollo):", f"{desarrollo:.2f} mm")
+
+# 4. Tabla de Secuencia Dinámica
+st.subheader("📋 Hoja de Ruta de Plegado")
+
+datos_tabla = []
+for i in range(num_pliegues):
+    ala_actual = lista_alas[i]
+    ala_siguiente = lista_alas[i+1]
+    
+    # Lógica de aviso de choque
+    estado = "✅ OK"
+    if ala_actual > CUELLO or ala_siguiente > CUELLO:
+        estado = "⚠️ POSIBLE CHOQUE (Revisar lado del cuello)"
+
+    datos_tabla.append({
+        "Golpe": i + 1,
+        "Ala a Plegar (mm)": ala_actual,
+        "Estado": estado,
+        "Instrucción": "Apoyar contra el tope y plegar"
+    })
+
+st.table(datos_tabla)
+
+# 5. Dibujo Dinámico de la Chapa (Esquema básico)
+fig, ax = plt.subplots(figsize=(10, 2))
+acumulado = 0
+for i, ala in enumerate(lista_alas):
+    ax.plot([acumulado, acumulado + ala], [0, 0], linewidth=5, label=f"Ala {i+1}")
+    if i < num_pliegues:
+        ax.text(acumulado + ala, 0.1, str(i+1), color='red', weight='bold', fontsize=12)
+    acumulado += ala
+
+ax.set_ylim(-1, 1)
+ax.axis('off')
+st.pyplot(fig)
