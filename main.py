@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import math
 
 st.set_page_config(page_title="FDM - Simulador 179", layout="wide")
-st.title("🚀 FDM Fase 2: Ángulos de 1° a 179° (U/Z)")
+st.title("🚀 FDM Fase 2: Simulador con Ángulos (1° a 179°)")
 
 # 1. PARÁMETROS DE MÁQUINA
 CUELLO = 18.0
@@ -15,10 +15,14 @@ with st.sidebar:
     
     st.divider()
     st.subheader("📐 Medidas de las Alas")
-    input_alas = st.text_input("Alas (ej: 20, 50, 20):", "20, 50, 20", key="alas_f2")
+    input_alas = st.text_input("Alas (ej: 30, 60, 30):", "30, 60, 30", key="alas_f2")
 
 # Procesamiento de alas
-lista_alas = [float(x.strip()) for x in input_alas.split(",") if x.strip()]
+try:
+    lista_alas = [float(x.strip()) for x in input_alas.split(",") if x.strip()]
+except:
+    lista_alas = [10, 10]
+
 num_pliegues = len(lista_alas) - 1
 
 # 2. CONFIGURACIÓN INDIVIDUAL DE GOLPES
@@ -29,7 +33,6 @@ config_golpes = []
 for i in range(num_pliegues):
     with columnas[i]:
         st.markdown(f"**Golpe {i+1}**")
-        # Cambio de rango: ahora de 1 a 179 grados
         ang = st.number_input(f"Ángulo (°)", 1, 179, 90, key=f"ang_{i}")
         tipo = st.selectbox(f"Sentido", ["Tipo U", "Tipo Z"], key=f"tipo_{i}")
         config_golpes.append({"angulo": ang, "tipo": tipo})
@@ -40,8 +43,7 @@ desarrollo = sum(lista_alas)
 
 for i in range(num_pliegues):
     ang_plegado = config_golpes[i]["angulo"]
-    # Cálculo de deducción de pliegue según ángulo (Fórmula empírica)
-    # A 180° la deducción es 0, a 90° es la máxima.
+    # A mayor ángulo (más abierto), menos descuento. 180° = 0 descuento.
     factor_correccion = (180 - ang_plegado) / 90
     deduccion = ((2 * (r_int + esp)) - ((math.pi/2) * (r_int + (esp*0.45)))) * factor_correccion
     desarrollo -= deduccion
@@ -52,22 +54,41 @@ st.success(f"📏 LARGO PARA CORTAR: **{desarrollo:.2f} mm**")
 st.subheader("🎨 Forma Final de la Pieza (Simulación)")
 fig_shape, ax_s = plt.subplots(figsize=(10, 6))
 
-curr_x, curr_y = 0, 0
-curr_angle = 0  # Horizontal inicial
+cx, cy = 0, 0  # Coordenadas de inicio
+angulo_actual = 0 
 
 for i, ala in enumerate(lista_alas):
-    # Calculamos el final de la línea actual
-    new_x = curr_x + ala * math.cos(math.radians(curr_angle))
-    new_y = curr_y + ala * math.sin(math.radians(curr_angle))
+    # Calcular el siguiente punto
+    proximo_x = cx + ala * math.cos(math.radians(angulo_actual))
+    proximo_y = cy + ala * math.sin(math.radians(angulo_actual))
     
-    # Dibujamos el ala
-    ax_s.plot([curr_x, new_x], [curr_y, new_y], linewidth=5, color="#1f77b4", solid_capstyle='round')
-    ax_s.text((curr_x + new_x)/2, (curr_y + new_y)/2 + 2, f"{ala}", color="black", fontsize=10)
+    # Dibujar el ala
+    ax_s.plot([cx, proximo_x], [cy, proximo_y], linewidth=6, color="#1f77b4", solid_capstyle='round')
     
-    # Si hay un pliegue después de esta ala, rotamos el ángulo para la siguiente
+    # Etiqueta de largo de ala
+    ax_s.text((cx + proximo_x)/2, (cy + proximo_y)/2 + 1, f"{ala}mm", ha='center', fontsize=9)
+    
+    # Si hay un pliegue, calcular el nuevo ángulo para la siguiente ala
     if i < num_pliegues:
         g = config_golpes[i]
-        # Rotación según el ángulo de plegado ingresado
         rotacion = (180 - g["angulo"])
+        
+        # Etiqueta del ángulo en el vértice
+        ax_s.text(proximo_x, proximo_y + 2, f"{g['angulo']}°", color="red", fontweight="bold")
+        
         if g["tipo"] == "Tipo U":
-            curr_
+            angulo_actual += rotacion
+        else:
+            angulo_actual -= rotacion
+            
+    cx, cy = proximo_x, proximo_y
+
+ax_s.set_aspect('equal')
+ax_s.axis('off')
+st.pyplot(fig_shape)
+
+# 5. ALERTAS DE CHOQUE
+st.divider()
+for i, ala in enumerate(lista_alas[:-1]):
+    if ala > CUELLO:
+        st.warning(f"⚠️ GOLPE {i+1}: El ala de {ala}mm es larga. ¡Cuidado con el cuello de 18mm!")
