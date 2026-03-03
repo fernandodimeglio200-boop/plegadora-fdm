@@ -131,3 +131,71 @@ for i, ala in enumerate(lista_alas):
 ax.set_ylim(-1, 1)
 ax.axis('off')
 st.pyplot(fig)
+import streamlit as st
+import matplotlib.pyplot as plt
+import math
+
+st.set_page_config(page_title="FDM - Secuenciador Dinámico", layout="wide")
+st.title("🛠️ Simulador de Plegado Dinámico - FDM")
+
+# 1. Configuración de parámetros de la máquina
+with st.sidebar:
+    st.header("⚙️ Configuración")
+    esp = st.selectbox("Espesor (mm)", [0.5, 0.9, 1.25, 1.6, 2.0, 2.5, 3.18, 4.76, 6.35])
+    v_matriz = st.number_input("V de Matriz (mm)", value=float(esp * 8))
+    
+    st.divider()
+    st.subheader("📐 Medidas de la Pieza")
+    # Este es el cuadro de texto que "escucha" el programa
+    input_alas = st.text_input("Ingresá las medidas de las alas (separadas por coma):", "20, 40, 60, 15, 30, 15")
+
+# 2. Procesamiento de datos (se ejecuta cada vez que cambiás un número)
+try:
+    lista_alas = [float(x.strip()) for x in input_alas.split(",") if x.strip()]
+    num_pliegues = len(lista_alas) - 1
+    
+    # Cálculo de desarrollo (básico)
+    deduccion = (v_matriz / 6) * 0.5 
+    desarrollo = sum(lista_alas) - (deduccion * num_pliegues)
+
+    # 3. Mostrar Resultados
+    col1, col2 = st.columns(2)
+    col1.metric("📏 LARGO A CORTAR:", f"{desarrollo:.2f} mm")
+    col2.metric("🔢 Pliegues calculados:", num_pliegues)
+
+    # 4. Gráfico Dinámico (Se redibuja solo)
+    st.subheader("Visualización del desarrollo")
+    
+    # Creamos una figura nueva en cada ejecución
+    fig, ax = plt.subplots(figsize=(10, 2))
+    
+    acumulado = 0
+    colores = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728'] # Colores alternados
+    
+    for i, ala in enumerate(lista_alas):
+        # Dibujar la línea de la chapa
+        ax.plot([acumulado, acumulado + ala], [0, 0], marker='o', linewidth=4, label=f"Ala {i+1}")
+        # Etiqueta del ala
+        ax.text(acumulado + (ala/2), 0.1, f"{ala}mm", ha='center', fontsize=9)
+        # Etiqueta del orden
+        if i < len(lista_alas)-1:
+            ax.text(acumulado + ala, -0.2, f"P{i+1}", color='red', weight='bold')
+        
+        acumulado += ala
+
+    ax.set_ylim(-1, 1)
+    ax.set_xlim(-5, acumulado + 5)
+    ax.axis('off')
+    st.pyplot(fig)
+
+    # 5. Tabla de Secuencia
+    st.subheader("📋 Secuencia de Plegado")
+    st.write("Verificá si el ala es mayor a 18mm para evitar colisiones.")
+    
+    datos = []
+    for i in range(num_pliegues):
+        datos.append({"Golpe": i+1, "Ala (mm)": lista_alas[i], "Acción": "Plegar"})
+    st.table(datos)
+
+except Exception as e:
+    st.error("Por favor, ingresá los números separados por coma (ejemplo: 20, 40, 60)")
