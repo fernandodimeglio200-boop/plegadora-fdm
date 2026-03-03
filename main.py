@@ -1,87 +1,88 @@
 import streamlit as st
 import matplotlib.pyplot as plt
+import numpy as np
 import math
 
-# Configuración básica de FDM
-st.set_page_config(page_title="FDM - Golpes", layout="wide")
+st.set_page_config(page_title="FDM - Simulador Pro", layout="wide")
+st.title("🚀 FDM Fase 2: Simulador de Ángulos y Formas (U/Z)")
 
-st.title("🛠️ Sistema de Plegado Dinámico con Mapa de Golpes - FDM")
-
-# 1. PARÁMETROS DE MÁQUINA Y PIEZA
-# Estos datos definen los límites de choque
-CUELLO_CISNE_MM = 18.0 
+# 1. PARÁMETROS DE MÁQUINA
+CUELLO = 18.0
 
 with st.sidebar:
-    st.header("⚙️ Configuración")
-    # Selectores únicos para evitar errores
-    esp_maquina = st.selectbox("Espesor (mm):", 
-                               [0.5, 0.9, 1.25, 1.6, 2.0, 2.5, 3.18, 4.76, 6.35], 
-                               key="f_esp_1")
-    
-    v_matriz_maquina = st.number_input("V de Matriz (mm):", 
-                                       value=float(esp_maquina * 8), 
-                                       key="f_v_1")
+    st.header("⚙️ Configuración Global")
+    esp = st.selectbox("Espesor (mm):", [0.5, 0.9, 1.25, 1.6, 2.0, 2.5, 3.18, 4.76, 6.35], key="esp_f2")
+    v_matriz = st.number_input("V de Matriz (mm):", value=float(esp * 8), key="v_f2")
     
     st.divider()
-    st.subheader("📐 Medidas de la Pieza")
-    input_alas_maquina = st.text_input("Ingresá las alas (separadas por coma):", 
-                                       "20, 40, 20", 
-                                       key="f_alas_1")
+    st.subheader("📐 Medidas de las Alas")
+    input_alas = st.text_input("Alas (ej: 20, 40, 20):", "20, 40, 20", key="alas_f2")
 
-# 2. PROCESAMIENTO Y CÁLCULOS
-try:
-    # Convertimos el texto a una lista de números reales
-    lista_alas = [float(x.strip()) for x in input_alas_maquina.split(",") if x.strip()]
-except:
-    st.error("Error: Usá solo números y comas.")
-    lista_alas = [10, 10]
-
+# Procesamiento de alas
+lista_alas = [float(x.strip()) for x in input_alas.split(",") if x.strip()]
 num_pliegues = len(lista_alas) - 1
-r_int = v_matriz_maquina / 6
-# Cálculo de estiramiento (Deducción)
-deduccion = (2 * (r_int + esp_maquina)) - ((math.pi/2) * (r_int + (esp_maquina*0.45)))
-desarrollo = sum(lista_alas) - (deduccion * num_pliegues)
 
-# 3. RESULTADOS EN PANTALLA
-st.success(f"📏 LARGO PARA CORTAR: **{desarrollo:.2f} mm**")
+# 2. CONFIGURACIÓN INDIVIDUAL DE GOLPES
+st.subheader("🛠️ Configuración de cada Plegado")
+columnas = st.columns(num_pliegues)
+config_golpes = []
 
-# 4. GRÁFICO CON MAPA DE GOLPES
-st.subheader("✍️ Mapa de Secuencia de Plegado (Proporcional)")
-fig, ax = plt.subplots(figsize=(12, 4))
-acumulado = 0
+for i in range(num_pliegues):
+    with columnas[i]:
+        st.markdown(f"**Golpe {i+1}**")
+        ang = st.number_input(f"Ángulo (°)", 1, 90, 90, key=f"ang_{i}")
+        tipo = st.selectbox(f"Sentido", ["Mismo lado (U)", "Lado opuesto (Z)"], key=f"tipo_{i}")
+        config_golpes.append({"angulo": ang, "tipo": tipo})
 
-# Colores para distinguir cada ala proporcionalmente
-colores_alas = plt.cm.get_cmap('tab10', len(lista_alas))
+# 3. CÁLCULOS TÉCNICOS (Desarrollo dinámico por ángulo)
+desarrollo = sum(lista_alas)
+r_int = v_matriz / 6
+for golpe in config_golpes:
+    # Fórmula de deducción ajustada por ángulo
+    # A menor ángulo, menos descuento de chapa
+    factor_ang = golpe["angulo"] / 90
+    deduccion = ((2 * (r_int + esp)) - ((math.pi/2) * (r_int + (esp*0.45)))) * factor_ang
+    desarrollo -= deduccion
+
+st.success(f"📏 LARGO TOTAL PARA CORTAR: **{desarrollo:.2f} mm**")
+
+# 4. REPRESENTACIÓN DE LA FORMA FINAL (Esquema de la pieza)
+st.subheader("🎨 Representación Visual de la Pieza")
+fig_shape, ax_s = plt.subplots(figsize=(8, 6))
+
+curr_x, curr_y = 0, 0
+curr_angle = 0 # Horizontal inicial
+
+points_x = [0]
+points_y = [0]
 
 for i, ala in enumerate(lista_alas):
-    # Dibuja la línea proporcional del ala según la medida
-    ax.plot([acumulado, acumulado + ala], [0, 0], 
-            color=colores_alas(i), linewidth=10, solid_capstyle='round')
+    # Dibujar ala
+    new_x = curr_x + ala * math.cos(math.radians(curr_angle))
+    new_y = curr_y + ala * math.sin(math.radians(curr_angle))
+    ax_s.plot([curr_x, new_x], [curr_y, new_y], linewidth=4, color="blue")
     
-    # Etiqueta con la medida del ala en el centro de la línea
-    ax.text(acumulado + (ala/2), -0.4, f"{ala}mm", ha='center', weight='bold')
-    
-    # Si hay un pliegue después de esta ala, dibujamos el punto de golpe
+    # Si hay un pliegue después
     if i < num_pliegues:
-        punto_pliegue = acumulado + ala
-        
-        # Círculo rojo que marca el lugar exacto del plegado
-        ax.plot(punto_pliegue, 0, 'ro', markersize=14) 
-        # Número de golpe secuencial
-        ax.text(punto_pliegue, 0.6, f"GOLPE {i+1}", color='red', 
-                ha='center', fontsize=12, weight='bold')
-        
-        # ALERTA DE CHOQUE CON CUELLO DE 18mm
-        if ala > CUELLO_CISNE_MM:
-            # Ponemos el triángulo y el texto en color naranja
-            ax.text(punto_pliegue, 1.2, "⚠️ CUIDADO CON EL CUELLO", 
-                    color='orange', ha='center', fontsize=11, weight='bold')
-    
-    # Avanzamos para el siguiente segmento
-    acumulado += ala
+        g = config_golpes[i]
+        # Si es tipo U, el ángulo suma. Si es Z, resta.
+        if "U" in g["tipo"]:
+            curr_angle += (180 - g["angulo"])
+        else:
+            curr_angle -= (180 - g["angulo"])
+            
+    curr_x, curr_y = new_x, new_y
+    points_x.append(new_x)
+    points_y.append(new_y)
 
-# Ajustes de visualización del gráfico
-ax.set_ylim(-1.5, 2.5)
-ax.set_xlim(-5, sum(lista_alas) + 5)
-ax.axis('off') # Ocultamos los ejes para que parezca un plano de taller
-st.pyplot(fig)
+ax_s.set_aspect('equal')
+ax_s.axis('off')
+st.pyplot(fig_shape)
+
+# 5. ALERTAS DE CUELLO DE CISNE
+st.subheader("📋 Hoja de Ruta e Instrucciones")
+for i, ala in enumerate(lista_alas[:-1]):
+    if ala > CUELLO:
+        st.warning(f"⚠️ GOLPE {i+1}: El ala de {ala}mm es mayor que el cuello ({CUELLO}mm). ¡Verificar orientación!")
+    else:
+        st.info(f"✅ GOLPE {i+1}: Ala de {ala}mm libre.")
